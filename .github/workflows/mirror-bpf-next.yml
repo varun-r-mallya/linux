@@ -19,6 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           self="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          conf="$PWD/.github/mirrors.conf"
           rm -rf work
           git init -q work
           cd work
@@ -47,5 +48,5 @@ jobs:
             done
             [[ $ok -eq 1 ]] || { echo "push to $branch failed after 3 attempts"; exit 1; }
             echo "::endgroup::"
-          done < .github/mirrors.conf
+          done < "$conf"
           cd ..
