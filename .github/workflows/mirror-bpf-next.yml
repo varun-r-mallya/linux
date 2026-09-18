@@ -1,8 +1,8 @@
-name: Mirror bpf-next
+name: Mirror configured branches
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 0,12 * * *'
   workflow_dispatch: {}
 
 permissions:
@@ -12,8 +12,19 @@ jobs:
   mirror:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch upstream bpf-next and force-push to master
+      - name: Checkout automation branch
+        uses: actions/checkout@v4
+
+      - name: Sync configured mirrors
         run: |
-          git clone --bare https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git upstream.git
-          cd upstream.git
-          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" refs/heads/master:refs/heads/master
+          set -euo pipefail
+          while read -r url branch; do
+            [[ -z "$url" || "$url" == \#* ]] && continue
+            echo "::group::Syncing $url -> $branch"
+            rm -rf mirror.git
+            git clone --bare "$url" mirror.git
+            git -C mirror.git push --force \
+              "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
+              "HEAD:refs/heads/$branch"
+            echo "::endgroup::"
+          done < .github/mirrors.conf
