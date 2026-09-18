@@ -24,13 +24,16 @@ jobs:
           git init -q work
           cd work
 
-          # Seed with every branch we already mirror, metadata-only (no
-          # blobs/trees). Linux trees (bpf, bpf-next, net, net-next, ...)
-          # share the vast majority of their commit history, so a brand-new
-          # branch's upstream fetch below can skip re-downloading whatever
-          # objects any other already-mirrored branch already brought in,
-          # instead of only being able to reuse its own prior sync.
-          git fetch -q --filter=tree:0 "$self" '+refs/heads/*:refs/remotes/self/*' 2>/dev/null || true
+          # Seed with every branch we already mirror (full objects - a
+          # filtered/partial fetch here causes git to treat those commits as
+          # lazily-fetchable "promisor" objects, which breaks once we start
+          # fetching from a completely different upstream below). Linux
+          # trees (bpf, bpf-next, net, net-next, ...) share the vast
+          # majority of their commit history, so this GitHub-to-GitHub
+          # fetch lets a brand-new branch's upstream fetch skip
+          # re-downloading whatever any other already-mirrored branch
+          # already brought in, instead of only reusing its own prior sync.
+          git fetch -q "$self" '+refs/heads/*:refs/remotes/self/*' 2>/dev/null || true
 
           while read -r url branch; do
             [[ -z "$url" || "$url" == \#* ]] && continue
