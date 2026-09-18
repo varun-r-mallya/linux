@@ -18,13 +18,20 @@ jobs:
       - name: Sync configured mirrors
         run: |
           set -euo pipefail
+          self="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           while read -r url branch; do
             [[ -z "$url" || "$url" == \#* ]] && continue
             echo "::group::Syncing $url -> $branch"
-            rm -rf mirror.git
-            git clone --bare "$url" mirror.git
-            git -C mirror.git push --force \
-              "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
-              "HEAD:refs/heads/$branch"
+            rm -rf work
+            git init -q work
+            cd work
+            # Cheap: pull just our own current tip commit (metadata only, no
+            # blobs/trees) so the upstream fetch below can recognize what we
+            # already have and only transfer commits added since last sync,
+            # instead of re-downloading the whole upstream history every run.
+            git fetch -q --depth=1 --filter=tree:0 "$self" "refs/heads/$branch" 2>/dev/null || true
+            git fetch -q "$url" HEAD
+            git push --force "$self" "FETCH_HEAD:refs/heads/$branch"
+            cd ..
             echo "::endgroup::"
           done < .github/mirrors.conf
