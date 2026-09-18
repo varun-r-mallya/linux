@@ -31,7 +31,17 @@ jobs:
             # instead of re-downloading the whole upstream history every run.
             git fetch -q --depth=1 --filter=tree:0 "$self" "refs/heads/$branch" 2>/dev/null || true
             git fetch -q "$url" HEAD
-            git push --force "$self" "FETCH_HEAD:refs/heads/$branch"
+            ok=0
+            for attempt in 1 2 3; do
+              if git -c http.postBuffer=1048576000 -c http.version=HTTP/1.1 \
+                   push --force "$self" "FETCH_HEAD:refs/heads/$branch"; then
+                ok=1
+                break
+              fi
+              echo "push attempt $attempt failed, retrying..."
+              sleep 10
+            done
+            [[ $ok -eq 1 ]] || { echo "push to $branch failed after 3 attempts"; exit 1; }
             cd ..
             echo "::endgroup::"
           done < .github/mirrors.conf
