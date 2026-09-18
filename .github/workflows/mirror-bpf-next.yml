@@ -1,0 +1,19 @@
+name: Mirror bpf-next
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch upstream bpf-next and force-push to master
+        run: |
+          git clone --bare https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git upstream.git
+          cd upstream.git
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" refs/heads/master:refs/heads/master
