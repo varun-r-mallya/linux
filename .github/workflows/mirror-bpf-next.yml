@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# Never let two syncs race each other on the same branches.
+concurrency:
+  group: mirror
+  cancel-in-progress: false
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
@@ -16,40 +21,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Sync configured mirrors
-        run: |
-          set -euo pipefail
-          self="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-          conf="$PWD/.github/mirrors.conf"
-          rm -rf work
-          git init -q work
-          cd work
-
-          # Seed with every branch we already mirror (full objects - a
-          # filtered/partial fetch here causes git to treat those commits as
-          # lazily-fetchable "promisor" objects, which breaks once we start
-          # fetching from a completely different upstream below). Linux
-          # trees (bpf, bpf-next, net, net-next, ...) share the vast
-          # majority of their commit history, so this GitHub-to-GitHub
-          # fetch lets a brand-new branch's upstream fetch skip
-          # re-downloading whatever any other already-mirrored branch
-          # already brought in, instead of only reusing its own prior sync.
-          git fetch -q "$self" '+refs/heads/*:refs/remotes/self/*' 2>/dev/null || true
-
-          while read -r url branch; do
-            [[ -z "$url" || "$url" == \#* ]] && continue
-            echo "::group::Syncing $url -> $branch"
-            git fetch -q "$url" HEAD
-            ok=0
-            for attempt in 1 2 3; do
-              if git -c http.postBuffer=1048576000 -c http.version=HTTP/1.1 \
-                   push --force "$self" "FETCH_HEAD:refs/heads/$branch"; then
-                ok=1
-                break
-              fi
-              echo "push attempt $attempt failed, retrying..."
-              sleep 10
-            done
-            [[ $ok -eq 1 ]] || { echo "push to $branch failed after 3 attempts"; exit 1; }
-            echo "::endgroup::"
-          done < "$conf"
-          cd ..
+        env:
+          SELF_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        run: .github/scripts/sync-mirrors.sh "$SELF_URL" .github/mirrors.conf
